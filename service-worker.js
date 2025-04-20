@@ -1,4 +1,4 @@
-// 文件: service-worker.js
+
 const CACHE_NAME = 'wardrobe-cache-v1';
 const urlsToCache = [
   '/',
