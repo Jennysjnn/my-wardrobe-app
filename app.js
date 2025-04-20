@@ -3,6 +3,8 @@ const { useState, useEffect } = React;
 
 // 本地存储键名
 const WARDROBE_STORAGE_KEY = 'my-wardrobe-data';
+// 定义军绿工装常量
+const MILITARY_GREEN = '军绿工装';
 
 const WardrobeApp = () => {
   // 默认衣橱数据
@@ -16,7 +18,7 @@ const WardrobeApp = () => {
   // 搭配规则
   const defaultRules = {
     specialPants: {
-      '军绿工装': ['茵曼白圆领', '白U领'] // 军绿工装裤只能和这两件短袖搭配
+      [MILITARY_GREEN]: ['茵曼白圆领', '白U领'] // 军绿工装裤只能和这两件短袖搭配
     }
   };
 
@@ -468,7 +470,7 @@ const WardrobeApp = () => {
             <p className="text-sm text-gray-600 mb-2">军绿工装裤只能和以下短袖搭配:</p>
             
             <div className="bg-white p-3 rounded-lg shadow-sm">
-              {rules.specialPants['军绿工装']?.map(item => (
+              {rules.specialPants[MILITARY_GREEN]?.map(item => (
                 <span key={item} className="inline-block text-sm bg-blue-100 px-2 py-1 rounded mr-2 mb-2">
                   {item}
                 </span>
