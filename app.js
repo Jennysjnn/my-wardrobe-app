@@ -743,27 +743,7 @@ const WardrobeApp = () => {
             ))}
           </div>
           
-          {/* 统计信息 */}
-          <div className="mt-6 bg-white p-3 rounded-lg shadow-sm">
-            <h3 className="font-medium mb-2">衣物统计</h3>
-            <p>总衣物数量: {Object.values(wardrobe).flat().length} 件</p>
-            <p>外层数量: {
-              Object.keys(outfitSelections.outerLayer).reduce((acc, key) => {
-                return acc + (wardrobe[key] ? wardrobe[key].length : 0);
-              }, 0)
-            } 件</p>
-            <p>内层数量: {
-              Object.keys(outfitSelections.innerLayer).reduce((acc, key) => {
-                return acc + (wardrobe[key] ? wardrobe[key].length : 0);
-              }, 0)
-            } 件</p>
-            <p>底层数量: {
-              Object.keys(outfitSelections.bottomLayer).reduce((acc, key) => {
-                return acc + (wardrobe[key] ? wardrobe[key].length : 0);
-              }, 0)
-            } 件</p>
-            <p>连衣裙数量: {wardrobe.dress ? wardrobe.dress.length : 0} 件</p>
-          </div>
+
         </div>
       )}
       
