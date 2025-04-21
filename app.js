@@ -1,4 +1,3 @@
-// 电子衣橱应用的主要JavaScript文件
 const { useState, useEffect } = React;
 
 // 本地存储键名
@@ -13,16 +12,8 @@ const WardrobeApp = () => {
     pants: ['军绿工装', '薄皮牛仔裤', '森马米白', '逸阳长腿直筒蓝牛仔']
   };
 
-  // 搭配规则
-  const defaultRules = {
-    specialPants: {
-      '军绿工装': ['茵曼白圆领', '白U领'] // 军绿工装裤只能和这两件短袖搭配
-    }
-  };
-
   // 状态管理
   const [wardrobe, setWardrobe] = useState(defaultWardrobe);
-  const [rules, setRules] = useState(defaultRules);
   const [outfits, setOutfits] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState('outfits'); // 'outfits', 'edit'
@@ -38,9 +29,8 @@ const WardrobeApp = () => {
     const savedData = localStorage.getItem(WARDROBE_STORAGE_KEY);
     if (savedData) {
       try {
-        const { savedWardrobe, savedRules } = JSON.parse(savedData);
+        const savedWardrobe = JSON.parse(savedData);
         if (savedWardrobe) setWardrobe(savedWardrobe);
-        if (savedRules) setRules(savedRules);
       } catch (e) {
         console.error('Failed to load wardrobe data:', e);
       }
@@ -49,13 +39,10 @@ const WardrobeApp = () => {
 
   // 保存到本地存储
   useEffect(() => {
-    localStorage.setItem(WARDROBE_STORAGE_KEY, JSON.stringify({
-      savedWardrobe: wardrobe,
-      savedRules: rules
-    }));
+    localStorage.setItem(WARDROBE_STORAGE_KEY, JSON.stringify(wardrobe));
     // 重新生成搭配
     generateOutfits();
-  }, [wardrobe, rules]);
+  }, [wardrobe]);
 
   // 生成所有可行的搭配组合
   const generateOutfits = () => {
@@ -64,23 +51,10 @@ const WardrobeApp = () => {
     // 情况1: 短袖 + 裤子
     wardrobe.shortSleeve.forEach(top => {
       wardrobe.pants.forEach(bottom => {
-        // 特殊规则检查
-        const specialRules = rules.specialPants[bottom];
-        if (specialRules && specialRules.length > 0) {
-          // 如果有特殊规则，检查是否在允许列表中
-          if (specialRules.includes(top)) {
-            allOutfits.push({
-              top: { type: 'shortSleeve', item: top },
-              bottom: bottom
-            });
-          }
-        } else {
-          // 没有特殊规则，可以自由搭配
-          allOutfits.push({
-            top: { type: 'shortSleeve', item: top },
-            bottom: bottom
-          });
-        }
+        allOutfits.push({
+          top: { type: 'shortSleeve', item: top },
+          bottom: bottom
+        });
       });
     });
     
@@ -88,25 +62,10 @@ const WardrobeApp = () => {
     wardrobe.shirt.forEach(shirt => {
       wardrobe.innerWear.forEach(inner => {
         wardrobe.pants.forEach(bottom => {
-          // 特殊规则检查
-          const specialRules = rules.specialPants[bottom];
-          if (specialRules && specialRules.length > 0) {
-            // 检查特殊裤子是否有"衬衫类型"的规则
-            // 我们假设如果特殊裤子有规则，且规则只提到短袖，则衬衫不能搭配
-            const canUseShirt = specialRules.some(item => !wardrobe.shortSleeve.includes(item));
-            if (canUseShirt) {
-              allOutfits.push({
-                top: { type: 'shirt', item: shirt, inner: inner },
-                bottom: bottom
-              });
-            }
-          } else {
-            // 没有特殊规则，可以自由搭配
-            allOutfits.push({
-              top: { type: 'shirt', item: shirt, inner: inner },
-              bottom: bottom
-            });
-          }
+          allOutfits.push({
+            top: { type: 'shirt', item: shirt, inner: inner },
+            bottom: bottom
+          });
         });
       });
     });
@@ -164,34 +123,10 @@ const WardrobeApp = () => {
   const confirmRemove = () => {
     const { category, item } = itemToRemove;
     
-    // 检查是否在规则中引用了该项目
-    let canRemove = true;
-    
-    if (category === 'shortSleeve') {
-      // 检查特殊裤子规则中是否引用了此短袖
-      Object.values(rules.specialPants).forEach(allowedItems => {
-        if (allowedItems.includes(item)) {
-          alert(`无法删除"${item}"，因为它在特殊搭配规则中被引用。`);
-          canRemove = false;
-        }
-      });
-    } else if (category === 'pants') {
-      // 如果是特殊裤子，需要删除对应规则
-      if (rules.specialPants[item]) {
-        setRules(prev => {
-          const newRules = {...prev};
-          delete newRules.specialPants[item];
-          return newRules;
-        });
-      }
-    }
-    
-    if (canRemove) {
-      setWardrobe(prev => ({
-        ...prev,
-        [category]: prev[category].filter(i => i !== item)
-      }));
-    }
+    setWardrobe(prev => ({
+      ...prev,
+      [category]: prev[category].filter(i => i !== item)
+    }));
     
     setItemToRemove({ category: '', item: '' });
   };
@@ -288,24 +223,6 @@ const WardrobeApp = () => {
               删除
             </button>
           </div>
-        </div>
-      </div>
-    );
-  };
-
-  // 特殊规则显示部分
-  const renderSpecialRules = () => {
-    return (
-      <div className="mt-6">
-        <h3 className="font-medium mb-2">特殊搭配规则</h3>
-        <p className="text-sm text-gray-600 mb-2">军绿工装裤只能和以下短袖搭配:</p>
-        
-        <div className="bg-white p-3 rounded-lg shadow-sm">
-          {rules.specialPants['军绿工装'] && rules.specialPants['军绿工装'].map(item => (
-            <span key={item} className="inline-block text-sm bg-blue-100 px-2 py-1 rounded mr-2 mb-2">
-              {item}
-            </span>
-          ))}
         </div>
       </div>
     );
@@ -445,6 +362,16 @@ const WardrobeApp = () => {
         <div className="p-4">
           <h2 className="text-lg font-medium mb-4">衣物管理</h2>
           
+          {/* 搭配规则提示 */}
+          <div className="bg-blue-50 p-3 rounded-lg mb-4 text-sm">
+            <h3 className="font-medium mb-1">搭配规则说明</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>短袖可以直接和裤子搭配</li>
+              <li>内搭必须搭配衬衫一起穿</li>
+              <li>所有裤子均可自由搭配</li>
+            </ul>
+          </div>
+          
           {/* 衣物类别管理 */}
           <div className="space-y-4">
             {Object.keys(wardrobe).map(category => (
@@ -470,7 +397,14 @@ const WardrobeApp = () => {
             ))}
           </div>
           
-          {renderSpecialRules()}
+          {/* 统计信息 */}
+          <div className="mt-6 bg-white p-3 rounded-lg shadow-sm">
+            <h3 className="font-medium mb-2">搭配统计</h3>
+            <p>总衣物数量: {Object.values(wardrobe).flat().length} 件</p>
+            <p>可行搭配组合: {outfits.length} 种</p>
+            <p>短袖搭配: {outfits.filter(o => o.top.type === 'shortSleeve').length} 种</p>
+            <p>衬衫+内搭搭配: {outfits.filter(o => o.top.type === 'shirt').length} 种</p>
+          </div>
         </div>
       )}
       
@@ -480,4 +414,5 @@ const WardrobeApp = () => {
   );
 };
 
+// 渲染应用
 ReactDOM.render(<WardrobeApp />, document.getElementById('root'));
