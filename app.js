@@ -1,3 +1,4 @@
+// 文件: app.js
 const { useState, useEffect } = React;
 
 // 本地存储键名
@@ -24,12 +25,31 @@ const WardrobeApp = () => {
   const [outfits, setOutfits] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState('outfits'); 
-  const [filters, setFilters] = useState({ top: 'all', middle: 'all', bottom: 'all', dress: 'all' });
   const [editCategory, setEditCategory] = useState(null);
   const [newItemName, setNewItemName] = useState('');
   const [itemToRemove, setItemToRemove] = useState({ category: '', item: '' });
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
+  const [categoryType, setCategoryType] = useState('');
+
+  // 新增: 搭配选择
+  const [outfitSelections, setOutfitSelections] = useState({
+    outerLayer: {
+      jacket: "any", // "any", "none", or specific item
+      thickJacket: "any"
+    },
+    innerLayer: {
+      innerWear: "any",
+      shortSleeve: "any",
+      longSleeve: "any",
+      thickLongSleeve: "any",
+      shirt: "any"
+    },
+    bottomLayer: {
+      pants: "any",
+      skirt: "any"
+    }
+  });
 
   const outfitsPerPage = 5;
 
@@ -41,6 +61,29 @@ const WardrobeApp = () => {
         const parsedData = JSON.parse(savedData);
         if (parsedData.wardrobe) setWardrobe(parsedData.wardrobe);
         if (parsedData.categoryOrder) setCategoryOrder(parsedData.categoryOrder);
+        
+        // 初始化搭配选择状态，确保包含所有类别
+        const newOuterLayer = {...outfitSelections.outerLayer};
+        const newInnerLayer = {...outfitSelections.innerLayer};
+        const newBottomLayer = {...outfitSelections.bottomLayer};
+        
+        // 分类每个类别到对应的层
+        Object.keys(parsedData.wardrobe).forEach(category => {
+          if (category === 'jacket' || category === 'thickJacket' || category.includes('Jacket')) {
+            if (!newOuterLayer[category]) newOuterLayer[category] = "any";
+          } else if (category === 'pants' || category === 'skirt' || category.includes('pants') || category.includes('skirt')) {
+            if (!newBottomLayer[category]) newBottomLayer[category] = "any";
+          } else if (category !== 'dress') { // 连衣裙不参与搭配
+            if (!newInnerLayer[category]) newInnerLayer[category] = "any";
+          }
+        });
+        
+        // 更新搭配选择状态
+        setOutfitSelections({
+          outerLayer: newOuterLayer,
+          innerLayer: newInnerLayer,
+          bottomLayer: newBottomLayer
+        });
       } catch (e) {
         console.error('Failed to load wardrobe data:', e);
       }
@@ -53,218 +96,103 @@ const WardrobeApp = () => {
       wardrobe,
       categoryOrder
     }));
-    // 重新生成搭配
-    generateOutfits();
   }, [wardrobe, categoryOrder]);
 
   // 生成所有可行的搭配组合
   const generateOutfits = () => {
     const allOutfits = [];
     
-    // 连衣裙独立搭配
-    if (wardrobe.dress) {
-      wardrobe.dress.forEach(dress => {
-        allOutfits.push({
-          type: 'dress',
-          dress: dress
-        });
-      });
-    }
-    
-    // 底装
-    const bottoms = [];
-    if (wardrobe.pants) {
-      wardrobe.pants.forEach(item => bottoms.push({ type: 'pants', item }));
-    }
-    if (wardrobe.skirt) {
-      wardrobe.skirt.forEach(item => bottoms.push({ type: 'skirt', item }));
-    }
-    
-    // 情况1: 短袖 + 底装
-    if (wardrobe.shortSleeve) {
-      wardrobe.shortSleeve.forEach(top => {
-        bottoms.forEach(bottom => {
-          allOutfits.push({
-            type: 'outfit',
-            top: { type: 'shortSleeve', item: top },
-            bottom: bottom
-          });
-        });
-      });
-    }
-    
-    // 情况2: 长袖 + 底装
-    if (wardrobe.longSleeve) {
-      wardrobe.longSleeve.forEach(top => {
-        bottoms.forEach(bottom => {
-          allOutfits.push({
-            type: 'outfit',
-            top: { type: 'longSleeve', item: top },
-            bottom: bottom
-          });
-        });
-      });
-    }
-    
-    // 情况3: 厚长袖 + 底装
-    if (wardrobe.thickLongSleeve) {
-      wardrobe.thickLongSleeve.forEach(top => {
-        bottoms.forEach(bottom => {
-          allOutfits.push({
-            type: 'outfit',
-            top: { type: 'thickLongSleeve', item: top },
-            bottom: bottom
-          });
-        });
-      });
-    }
-    
-    // 情况4: 衬衫 + 吊带 + 底装
-    if (wardrobe.shirt && wardrobe.innerWear) {
-      wardrobe.shirt.forEach(shirt => {
-        wardrobe.innerWear.forEach(inner => {
-          bottoms.forEach(bottom => {
-            allOutfits.push({
-              type: 'outfit',
-              top: { type: 'shirt', item: shirt, inner: inner },
-              bottom: bottom
-            });
-          });
-        });
-      });
-    }
-    
-    // 情况5: 外套 + 短袖/长袖 + 底装
-    if (wardrobe.jacket) {
-      wardrobe.jacket.forEach(jacket => {
-        // 外套 + 短袖
-        if (wardrobe.shortSleeve) {
-          wardrobe.shortSleeve.forEach(inner => {
-            bottoms.forEach(bottom => {
-              allOutfits.push({
-                type: 'outfit',
-                top: { type: 'jacket', item: jacket, inner: { type: 'shortSleeve', item: inner } },
-                bottom: bottom
-              });
-            });
+    // 获取选中的外层选项
+    const outerOptions = [];
+    Object.entries(outfitSelections.outerLayer).forEach(([category, selection]) => {
+      if (selection === "none") return; // 如果选择不使用该类别，跳过
+      
+      if (selection === "any") {
+        // 如果是"任选"，添加该类别的所有项目
+        if (wardrobe[category]) {
+          wardrobe[category].forEach(item => {
+            outerOptions.push({ type: category, item });
           });
         }
-        
-        // 外套 + 长袖
-        if (wardrobe.longSleeve) {
-          wardrobe.longSleeve.forEach(inner => {
-            bottoms.forEach(bottom => {
-              allOutfits.push({
-                type: 'outfit',
-                top: { type: 'jacket', item: jacket, inner: { type: 'longSleeve', item: inner } },
-                bottom: bottom
-              });
-            });
-          });
-        }
-      });
+      } else {
+        // 如果是特定项目，只添加该项目
+        outerOptions.push({ type: category, item: selection });
+      }
+    });
+    
+    // 如果没有选择任何外层，添加一个空选项表示不使用外套
+    if (outerOptions.length === 0) {
+      outerOptions.push({ type: 'none', item: null });
     }
     
-    // 情况6: 厚外套 + 长袖/厚长袖 + 底装
-    if (wardrobe.thickJacket) {
-      wardrobe.thickJacket.forEach(jacket => {
-        // 厚外套 + 长袖
-        if (wardrobe.longSleeve) {
-          wardrobe.longSleeve.forEach(inner => {
-            bottoms.forEach(bottom => {
-              allOutfits.push({
-                type: 'outfit',
-                top: { type: 'thickJacket', item: jacket, inner: { type: 'longSleeve', item: inner } },
-                bottom: bottom
-              });
-            });
+    // 获取选中的内层选项
+    const innerOptions = [];
+    Object.entries(outfitSelections.innerLayer).forEach(([category, selection]) => {
+      if (selection === "none") return; // 如果选择不使用该类别，跳过
+      
+      if (selection === "any") {
+        // 如果是"任选"，添加该类别的所有项目
+        if (wardrobe[category]) {
+          wardrobe[category].forEach(item => {
+            innerOptions.push({ type: category, item });
           });
         }
-        
-        // 厚外套 + 厚长袖
-        if (wardrobe.thickLongSleeve) {
-          wardrobe.thickLongSleeve.forEach(inner => {
-            bottoms.forEach(bottom => {
-              allOutfits.push({
-                type: 'outfit',
-                top: { type: 'thickJacket', item: jacket, inner: { type: 'thickLongSleeve', item: inner } },
-                bottom: bottom
-              });
-            });
-          });
-        }
-      });
+      } else {
+        // 如果是特定项目，只添加该项目
+        innerOptions.push({ type: category, item: selection });
+      }
+    });
+    
+    // 内层必须有选择，否则无法形成搭配
+    if (innerOptions.length === 0) {
+      setOutfits([]);
+      return;
     }
+    
+    // 获取选中的底层选项
+    const bottomOptions = [];
+    Object.entries(outfitSelections.bottomLayer).forEach(([category, selection]) => {
+      if (selection === "none") return; // 如果选择不使用该类别，跳过
+      
+      if (selection === "any") {
+        // 如果是"任选"，添加该类别的所有项目
+        if (wardrobe[category]) {
+          wardrobe[category].forEach(item => {
+            bottomOptions.push({ type: category, item });
+          });
+        }
+      } else {
+        // 如果是特定项目，只添加该项目
+        bottomOptions.push({ type: category, item: selection });
+      }
+    });
+    
+    // 底层必须有选择，否则无法形成搭配
+    if (bottomOptions.length === 0) {
+      setOutfits([]);
+      return;
+    }
+    
+    // 生成所有可能的搭配组合
+    outerOptions.forEach(outer => {
+      innerOptions.forEach(inner => {
+        bottomOptions.forEach(bottom => {
+          // 创建搭配
+          const outfit = {
+            outer: outer.type === 'none' ? null : outer,
+            inner,
+            bottom
+          };
+          
+          // 添加到搭配列表
+          allOutfits.push(outfit);
+        });
+      });
+    });
     
     setOutfits(allOutfits);
+    setCurrentPage(1); // 重置分页到第一页
   };
-
-  // 过滤搭配
-  const filteredOutfits = outfits.filter(outfit => {
-    // 连衣裙过滤
-    if (outfit.type === 'dress') {
-      if (filters.dress !== 'all' && outfit.dress !== filters.dress) {
-        return false;
-      }
-      return true;
-    }
-    
-    // 常规搭配过滤
-    // 上层过滤（外套/厚外套）
-    if (filters.top !== 'all') {
-      const [type, item] = filters.top.split('-');
-      if (type === 'jacket' && (!outfit.top.type || outfit.top.type !== 'jacket' || outfit.top.item !== item)) {
-        return false;
-      }
-      if (type === 'thickJacket' && (!outfit.top.type || outfit.top.type !== 'thickJacket' || outfit.top.item !== item)) {
-        return false;
-      }
-    }
-    
-    // 中层过滤（短袖/长袖/厚长袖/衬衫/内搭）
-    if (filters.middle !== 'all') {
-      const [type, item] = filters.middle.split('-');
-      
-      // 内搭必须与衬衫一起才有效
-      if (type === 'innerWear') {
-        if (!outfit.top.inner || outfit.top.type !== 'shirt' || outfit.top.inner !== item) {
-          return false;
-        }
-      } 
-      // 直接穿的上衣
-      else if (type === 'shortSleeve' || type === 'longSleeve' || type === 'thickLongSleeve') {
-        if (outfit.top.type === 'jacket' || outfit.top.type === 'thickJacket') {
-          if (!outfit.top.inner || outfit.top.inner.type !== type || outfit.top.inner.item !== item) {
-            return false;
-          }
-        } else if (outfit.top.type !== type || outfit.top.item !== item) {
-          return false;
-        }
-      }
-      // 衬衫作为上衣
-      else if (type === 'shirt') {
-        if (outfit.top.type !== 'shirt' || outfit.top.item !== item) {
-          return false;
-        }
-      }
-    }
-    
-    // 底装过滤
-    if (filters.bottom !== 'all') {
-      const [type, item] = filters.bottom.split('-');
-      if (!outfit.bottom || outfit.bottom.type !== type || outfit.bottom.item !== item) {
-        return false;
-      }
-    }
-    
-    return true;
-  });
-
-  // 分页数据
-  const indexOfLastOutfit = currentPage * outfitsPerPage;
-  const indexOfFirstOutfit = indexOfLastOutfit - outfitsPerPage;
-  const currentOutfits = filteredOutfits.slice(indexOfFirstOutfit, indexOfLastOutfit);
-  const totalPages = Math.ceil(filteredOutfits.length / outfitsPerPage);
 
   // 新增衣物项目
   const addItem = (category) => {
@@ -298,7 +226,7 @@ const WardrobeApp = () => {
 
   // 添加新类别
   const addCategory = () => {
-    if (!newCategoryName.trim()) return;
+    if (!newCategoryName.trim() || !categoryType) return;
     
     // 创建新类别
     setWardrobe(prev => ({
@@ -309,7 +237,21 @@ const WardrobeApp = () => {
     // 更新类别顺序
     setCategoryOrder(prev => [...prev, newCategoryName.trim()]);
     
+    // 更新搭配选择状态，将新类别添加到对应的层
+    setOutfitSelections(prev => {
+      const updated = {...prev};
+      if (categoryType === 'outer') {
+        updated.outerLayer[newCategoryName.trim()] = "any";
+      } else if (categoryType === 'inner') {
+        updated.innerLayer[newCategoryName.trim()] = "any";
+      } else if (categoryType === 'bottom') {
+        updated.bottomLayer[newCategoryName.trim()] = "any";
+      }
+      return updated;
+    });
+    
     setNewCategoryName('');
+    setCategoryType('');
     setShowAddCategory(false);
   };
 
@@ -324,6 +266,15 @@ const WardrobeApp = () => {
     
     // 从类别顺序中删除
     setCategoryOrder(prev => prev.filter(c => c !== category));
+    
+    // 从搭配选择状态中删除
+    setOutfitSelections(prev => {
+      const updated = {...prev};
+      if (updated.outerLayer[category]) delete updated.outerLayer[category];
+      if (updated.innerLayer[category]) delete updated.innerLayer[category];
+      if (updated.bottomLayer[category]) delete updated.bottomLayer[category];
+      return updated;
+    });
   };
 
   // 获取分类名称
@@ -341,6 +292,34 @@ const WardrobeApp = () => {
       dress: '连衣裙'
     };
     return nameMap[category] || category;
+  };
+
+  // 获取类别所属层
+  const getCategoryLayer = (category) => {
+    if (outfitSelections.outerLayer[category] !== undefined) return 'outer';
+    if (outfitSelections.innerLayer[category] !== undefined) return 'inner';
+    if (outfitSelections.bottomLayer[category] !== undefined) return 'bottom';
+    if (category === 'dress') return 'special'; // 连衣裙特殊处理
+    
+    // 根据类别名称推断
+    if (category.includes('jacket') || category.includes('Jacket')) return 'outer';
+    if (category.includes('pants') || category.includes('skirt') || category.includes('Pants') || category.includes('Skirt')) return 'bottom';
+    return 'inner'; // 默认归为内层
+  };
+
+  // 处理搭配选择变更
+  const handleOutfitSelectionChange = (layer, category, value) => {
+    setOutfitSelections(prev => {
+      const updated = {...prev};
+      if (layer === 'outer') {
+        updated.outerLayer = {...updated.outerLayer, [category]: value};
+      } else if (layer === 'inner') {
+        updated.innerLayer = {...updated.innerLayer, [category]: value};
+      } else if (layer === 'bottom') {
+        updated.bottomLayer = {...updated.bottomLayer, [category]: value};
+      }
+      return updated;
+    });
   };
 
   // 渲染编辑分类界面
@@ -436,6 +415,21 @@ const WardrobeApp = () => {
           <h3 className="font-bold text-lg mb-4">添加新类别</h3>
           
           <div className="mb-4">
+            <div className="mb-3">
+              <label className="block text-sm font-medium mb-1">类别所属层:</label>
+              <select
+                className="w-full p-2 border rounded"
+                value={categoryType}
+                onChange={(e) => setCategoryType(e.target.value)}
+              >
+                <option value="">请选择类别所属层</option>
+                <option value="outer">外层（外套）</option>
+                <option value="inner">内层（上衣）</option>
+                <option value="bottom">底层（下装）</option>
+                <option value="special">特殊（连衣裙）</option>
+              </select>
+            </div>
+            
             <div className="flex space-x-2 mb-2">
               <input
                 type="text"
@@ -446,7 +440,8 @@ const WardrobeApp = () => {
               />
               <button 
                 onClick={addCategory}
-                className="bg-green-500 text-white px-3 py-1 rounded"
+                disabled={!categoryType}
+                className={`${categoryType ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-500'} px-3 py-1 rounded`}
               >
                 添加
               </button>
@@ -455,7 +450,11 @@ const WardrobeApp = () => {
           
           <div className="flex justify-end">
             <button 
-              onClick={() => setShowAddCategory(false)}
+              onClick={() => {
+                setShowAddCategory(false);
+                setNewCategoryName('');
+                setCategoryType('');
+              }}
               className="bg-gray-300 text-gray-800 px-4 py-2 rounded"
             >
               取消
@@ -495,146 +494,86 @@ const WardrobeApp = () => {
     );
   };
 
-  // 获取衣物分类
-  const renderCategoryFilters = () => {
-    // 上层（外套/厚外套）
-    const topCategories = ['jacket', 'thickJacket'];
-    
-    // 中层（短袖/长袖/厚长袖/衬衫/内搭）
-    const middleCategories = ['shortSleeve', 'longSleeve', 'thickLongSleeve', 'shirt', 'innerWear'];
-    
-    // 底层（裤子/半身裙）
-    const bottomCategories = ['pants', 'skirt'];
-    
-    // 连衣裙单独一类
-    const dressCategory = 'dress';
-    
+  // 渲染搭配选择器
+  const renderOutfitSelectors = () => {
     return (
-      <div className="space-y-3">
-        {/* 连衣裙筛选 */}
-        <div>
-          <label className="block text-sm font-medium mb-1">连衣裙:</label>
-          <select 
-            className="w-full p-2 border rounded"
-            value={filters.dress}
-            onChange={(e) => setFilters({...filters, dress: e.target.value})}
-          >
-            <option value="all">所有连衣裙</option>
-            {wardrobe[dressCategory] && wardrobe[dressCategory].map(item => (
-              <option key={`dress-${item}`} value={item}>{item}</option>
-            ))}
-          </select>
+      <div className="space-y-4">
+        {/* 外层选择器 */}
+        <div className="bg-white p-3 rounded-lg shadow-sm">
+          <h3 className="font-medium mb-3">外层（外套）</h3>
+          {Object.keys(outfitSelections.outerLayer).map(category => (
+            <div key={category} className="mb-2">
+              <label className="block text-sm font-medium mb-1">{getCategoryName(category)}:</label>
+              <select
+                className="w-full p-2 border rounded"
+                value={outfitSelections.outerLayer[category]}
+                onChange={(e) => handleOutfitSelectionChange('outer', category, e.target.value)}
+              >
+                <option value="any">任选</option>
+                <option value="none">不选择该类别</option>
+                {wardrobe[category] && wardrobe[category].map(item => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </div>
+          ))}
         </div>
         
-        {/* 上层筛选 */}
-        <div>
-          <label className="block text-sm font-medium mb-1">外套筛选:</label>
-          <select 
-            className="w-full p-2 border rounded"
-            value={filters.top}
-            onChange={(e) => setFilters({...filters, top: e.target.value})}
-          >
-            <option value="all">所有/无外套</option>
-            {topCategories.map(category => (
-              wardrobe[category] && (
-                <optgroup key={category} label={getCategoryName(category)}>
-                  {wardrobe[category].map(item => (
-                    <option key={`${category}-${item}`} value={`${category}-${item}`}>{item}</option>
-                  ))}
-                </optgroup>
-              )
-            ))}
-          </select>
+        {/* 内层选择器 */}
+        <div className="bg-white p-3 rounded-lg shadow-sm">
+          <h3 className="font-medium mb-3">内层（上衣）</h3>
+          {Object.keys(outfitSelections.innerLayer).map(category => (
+            <div key={category} className="mb-2">
+              <label className="block text-sm font-medium mb-1">{getCategoryName(category)}:</label>
+              <select
+                className="w-full p-2 border rounded"
+                value={outfitSelections.innerLayer[category]}
+                onChange={(e) => handleOutfitSelectionChange('inner', category, e.target.value)}
+              >
+                <option value="any">任选</option>
+                <option value="none">不选择该类别</option>
+                {wardrobe[category] && wardrobe[category].map(item => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </div>
+          ))}
         </div>
         
-        {/* 中层筛选 */}
-        <div>
-          <label className="block text-sm font-medium mb-1">上衣筛选:</label>
-          <select 
-            className="w-full p-2 border rounded"
-            value={filters.middle}
-            onChange={(e) => setFilters({...filters, middle: e.target.value})}
-          >
-            <option value="all">所有上衣</option>
-            {middleCategories.map(category => (
-              wardrobe[category] && (
-                <optgroup key={category} label={getCategoryName(category)}>
-                  {wardrobe[category].map(item => (
-                    <option key={`${category}-${item}`} value={`${category}-${item}`}>{item}</option>
-                  ))}
-                </optgroup>
-              )
-            ))}
-          </select>
+        {/* 底层选择器 */}
+        <div className="bg-white p-3 rounded-lg shadow-sm">
+          <h3 className="font-medium mb-3">底层（下装）</h3>
+          {Object.keys(outfitSelections.bottomLayer).map(category => (
+            <div key={category} className="mb-2">
+              <label className="block text-sm font-medium mb-1">{getCategoryName(category)}:</label>
+              <select
+                className="w-full p-2 border rounded"
+                value={outfitSelections.bottomLayer[category]}
+                onChange={(e) => handleOutfitSelectionChange('bottom', category, e.target.value)}
+              >
+                <option value="any">任选</option>
+                <option value="none">不选择该类别</option>
+                {wardrobe[category] && wardrobe[category].map(item => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </div>
+          ))}
         </div>
         
-        {/* 底层筛选 */}
-        <div>
-          <label className="block text-sm font-medium mb-1">下装筛选:</label>
-          <select 
-            className="w-full p-2 border rounded"
-            value={filters.bottom}
-            onChange={(e) => setFilters({...filters, bottom: e.target.value})}
-          >
-            <option value="all">所有下装</option>
-            {bottomCategories.map(category => (
-              wardrobe[category] && (
-                <optgroup key={category} label={getCategoryName(category)}>
-                  {wardrobe[category].map(item => (
-                    <option key={`${category}-${item}`} value={`${category}-${item}`}>{item}</option>
-                  ))}
-                </optgroup>
-              )
-            ))}
-          </select>
-        </div>
+        {/* 生成搭配按钮 */}
+        <button
+          onClick={generateOutfits}
+          className="w-full bg-blue-500 text-white py-3 rounded-lg font-medium"
+        >
+          生成搭配
+        </button>
       </div>
     );
   };
 
   // 渲染搭配组合
   const renderOutfit = (outfit, index) => {
-    if (outfit.type === 'dress') {
-      return (
-        <div key={index} className="p-3 bg-white rounded-lg shadow-sm">
-          <h3 className="font-medium text-sm text-gray-500 mb-1">
-            搭配 #{indexOfFirstOutfit + index + 1}
-          </h3>
-          <div className="flex items-center">
-            <div className="flex-1">
-              <p>
-                <span className="text-gray-600">连衣裙:</span>{' '}
-                {outfit.dress}
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-              <span className="text-xs text-gray-500">搭配</span>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    
-    // 常规搭配
-    let topDescription = '';
-    if (outfit.top.type === 'jacket' || outfit.top.type === 'thickJacket') {
-      // 外套 + 内层
-      const outerType = outfit.top.type === 'jacket' ? '外套' : '厚外套';
-      const innerType = outfit.top.inner.type === 'shortSleeve' ? '短袖' : 
-                        outfit.top.inner.type === 'longSleeve' ? '长袖' : '厚长袖';
-      topDescription = `${outfit.top.item}(${outerType}) + ${outfit.top.inner.item}(${innerType})`;
-    } else if (outfit.top.type === 'shirt') {
-      // 衬衫 + 内搭
-      topDescription = `${outfit.top.item}(衬衫) + ${outfit.top.inner}(内搭)`;
-    } else {
-      // 单件上衣
-      const topType = outfit.top.type === 'shortSleeve' ? '短袖' : 
-                      outfit.top.type === 'longSleeve' ? '长袖' : '厚长袖';
-      topDescription = `${outfit.top.item}(${topType})`;
-    }
-    
-    const bottomType = outfit.bottom.type === 'pants' ? '裤子' : '半身裙';
-    
     return (
       <div key={index} className="p-3 bg-white rounded-lg shadow-sm">
         <h3 className="font-medium text-sm text-gray-500 mb-1">
@@ -642,13 +581,24 @@ const WardrobeApp = () => {
         </h3>
         <div className="flex items-center">
           <div className="flex-1">
+            {/* 外层 */}
+            {outfit.outer && (
+              <p className="mb-1">
+                <span className="text-gray-600">外层:</span>{' '}
+                {outfit.outer.item}({getCategoryName(outfit.outer.type)})
+              </p>
+            )}
+            
+            {/* 内层 */}
             <p className="mb-1">
-              <span className="text-gray-600">上装:</span>{' '}
-              {topDescription}
+              <span className="text-gray-600">内层:</span>{' '}
+              {outfit.inner.item}({getCategoryName(outfit.inner.type)})
             </p>
+            
+            {/* 底层 */}
             <p>
-              <span className="text-gray-600">下装:</span>{' '}
-              {outfit.bottom.item}({bottomType})
+              <span className="text-gray-600">底层:</span>{' '}
+              {outfit.bottom.item}({getCategoryName(outfit.bottom.type)})
             </p>
           </div>
           <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
@@ -658,6 +608,12 @@ const WardrobeApp = () => {
       </div>
     );
   };
+
+  // 分页数据
+  const indexOfLastOutfit = currentPage * outfitsPerPage;
+  const indexOfFirstOutfit = indexOfLastOutfit - outfitsPerPage;
+  const currentOutfits = outfits.slice(indexOfFirstOutfit, indexOfLastOutfit);
+  const totalPages = Math.ceil(outfits.length / outfitsPerPage);
 
   return (
     <div className="max-w-md mx-auto bg-gray-100 min-h-screen">
@@ -683,19 +639,19 @@ const WardrobeApp = () => {
       
       {activeTab === 'outfits' ? (
         <div className="p-4">
-          {/* 筛选区域 */}
+          {/* 搭配选择器 */}
           <div className="mb-4">
-            {renderCategoryFilters()}
+            {renderOutfitSelectors()}
           </div>
           
           {/* 搭配结果 */}
           <div className="mb-4">
             <h2 className="text-lg font-medium mb-2">
-              搭配结果 ({filteredOutfits.length}个)
+              搭配结果 ({outfits.length}个)
             </h2>
             
-            {filteredOutfits.length === 0 ? (
-              <p className="text-center py-4 bg-gray-50 rounded">没有找到符合条件的搭配</p>
+            {outfits.length === 0 ? (
+              <p className="text-center py-4 bg-gray-50 rounded">点击"生成搭配"按钮生成搭配方案</p>
             ) : (
               <div className="space-y-3">
                 {currentOutfits.map((outfit, index) => renderOutfit(outfit, index))}
@@ -704,7 +660,7 @@ const WardrobeApp = () => {
           </div>
           
           {/* 分页 */}
-          {filteredOutfits.length > 0 && (
+          {outfits.length > 0 && (
             <div className="flex justify-between items-center">
               <button 
                 onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
@@ -744,11 +700,10 @@ const WardrobeApp = () => {
           <div className="bg-blue-50 p-3 rounded-lg mb-4 text-sm">
             <h3 className="font-medium mb-1">搭配规则说明</h3>
             <ul className="list-disc pl-5 space-y-1">
-              <li>连衣裙可以独立成为一套搭配</li>
-              <li>短袖/长袖/厚长袖可以直接与裤子或半身裙搭配</li>
-              <li>吊带必须与衬衫一起才能与下装搭配</li>
-              <li>外套可以与短袖或长袖一起搭配</li>
-              <li>厚外套可以与长袖或厚长袖一起搭配</li>
+              <li>搭配分为三个模块：外层（外套）、内层（上衣）和底层（下装）</li>
+              <li>每个类别可以选择"任选"或"不选择该类别"</li>
+              <li>内层和底层必须至少有一个选择才能生成搭配</li>
+              <li>点击"生成搭配"按钮可根据选择生成所有可行的搭配方案</li>
             </ul>
           </div>
           
@@ -757,7 +712,15 @@ const WardrobeApp = () => {
             {categoryOrder.filter(category => wardrobe[category]).map(category => (
               <div key={category} className="bg-white p-3 rounded-lg shadow-sm">
                 <div className="flex justify-between items-center">
-                  <h3 className="font-medium">{getCategoryName(category)} ({wardrobe[category].length})</h3>
+                  <h3 className="font-medium">
+                    {getCategoryName(category)} ({wardrobe[category].length})
+                    <span className="ml-2 text-xs text-gray-500">
+                      {getCategoryLayer(category) === 'outer' && '- 外层'}
+                      {getCategoryLayer(category) === 'inner' && '- 内层'}
+                      {getCategoryLayer(category) === 'bottom' && '- 底层'}
+                      {getCategoryLayer(category) === 'special' && '- 特殊'}
+                    </span>
+                  </h3>
                   <button 
                     onClick={() => setEditCategory(category)}
                     className="bg-blue-500 text-white px-2 py-1 rounded text-sm"
@@ -782,12 +745,12 @@ const WardrobeApp = () => {
           
           {/* 统计信息 */}
           <div className="mt-6 bg-white p-3 rounded-lg shadow-sm">
-            <h3 className="font-medium mb-2">搭配统计</h3>
+            <h3 className="font-medium mb-2">衣物统计</h3>
             <p>总衣物数量: {Object.values(wardrobe).flat().length} 件</p>
-            <p>可行搭配组合: {outfits.length} 种</p>
-            <p>连衣裙搭配: {outfits.filter(o => o.type === 'dress').length} 种</p>
-            <p>含外套搭配: {outfits.filter(o => o.type === 'outfit' && (o.top.type === 'jacket' || o.top.type === 'thickJacket')).length} 种</p>
-            <p>含半身裙搭配: {outfits.filter(o => o.type === 'outfit' && o.bottom.type === 'skirt').length} 种</p>
+            <p>外层数量: {Object.keys(outfitSelections.outerLayer).reduce((acc, key) => acc + (wardrobe[key]?.length || 0), 0)} 件</p>
+            <p>内层数量: {Object.keys(outfitSelections.innerLayer).reduce((acc, key) => acc + (wardrobe[key]?.length || 0), 0)} 件</p>
+            <p>底层数量: {Object.keys(outfitSelections.bottomLayer).reduce((acc, key) => acc + (wardrobe[key]?.length || 0), 0)} 件</p>
+            <p>连衣裙数量: {wardrobe.dress?.length || 0} 件</p>
           </div>
         </div>
       )}
