@@ -1,10 +1,8 @@
-// 文件: app.js
+// 电子衣橱应用的主要JavaScript文件
 const { useState, useEffect } = React;
 
 // 本地存储键名
 const WARDROBE_STORAGE_KEY = 'my-wardrobe-data';
-// 定义军绿工装常量
-const MILITARY_GREEN = '军绿工装';
 
 const WardrobeApp = () => {
   // 默认衣橱数据
@@ -18,7 +16,7 @@ const WardrobeApp = () => {
   // 搭配规则
   const defaultRules = {
     specialPants: {
-      [MILITARY_GREEN]: ['茵曼白圆领', '白U领'] // 军绿工装裤只能和这两件短袖搭配
+      '军绿工装': ['茵曼白圆领', '白U领'] // 军绿工装裤只能和这两件短袖搭配
     }
   };
 
@@ -198,18 +196,18 @@ const WardrobeApp = () => {
     setItemToRemove({ category: '', item: '' });
   };
 
-  // 设置特殊规则
-  const setSpecialRule = (pant, allowedTops) => {
-    setRules(prev => ({
-      ...prev,
-      specialPants: {
-        ...prev.specialPants,
-        [pant]: allowedTops
-      }
-    }));
+  // 获取分类名称
+  const getCategoryName = (category) => {
+    const nameMap = {
+      innerWear: '内搭',
+      shortSleeve: '短袖',
+      shirt: '衬衫',
+      pants: '裤子'
+    };
+    return nameMap[category] || category;
   };
 
-  // 渲染编辑分类的界面
+  // 渲染编辑分类界面
   const renderEditCategory = () => {
     if (!editCategory) return null;
     
@@ -295,15 +293,22 @@ const WardrobeApp = () => {
     );
   };
 
-  // 获取分类名称
-  const getCategoryName = (category) => {
-    const nameMap = {
-      innerWear: '内搭',
-      shortSleeve: '短袖',
-      shirt: '衬衫',
-      pants: '裤子'
-    };
-    return nameMap[category] || category;
+  // 特殊规则显示部分
+  const renderSpecialRules = () => {
+    return (
+      <div className="mt-6">
+        <h3 className="font-medium mb-2">特殊搭配规则</h3>
+        <p className="text-sm text-gray-600 mb-2">军绿工装裤只能和以下短袖搭配:</p>
+        
+        <div className="bg-white p-3 rounded-lg shadow-sm">
+          {rules.specialPants['军绿工装'] && rules.specialPants['军绿工装'].map(item => (
+            <span key={item} className="inline-block text-sm bg-blue-100 px-2 py-1 rounded mr-2 mb-2">
+              {item}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -465,18 +470,7 @@ const WardrobeApp = () => {
             ))}
           </div>
           
-          <div className="mt-6">
-            <h3 className="font-medium mb-2">特殊搭配规则</h3>
-            <p className="text-sm text-gray-600 mb-2">军绿工装裤只能和以下短袖搭配:</p>
-            
-            <div className="bg-white p-3 rounded-lg shadow-sm">
-              {rules.specialPants[MILITARY_GREEN]?.map(item => (
-                <span key={item} className="inline-block text-sm bg-blue-100 px-2 py-1 rounded mr-2 mb-2">
-                  {item}
-                </span>
-              ))}
-            </div>
-          </div>
+          {renderSpecialRules()}
         </div>
       )}
       
